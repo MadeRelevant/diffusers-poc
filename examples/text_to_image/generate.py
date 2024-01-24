@@ -14,13 +14,13 @@ generator = torch.Generator(device="cuda").manual_seed(1337)
 
 pipeline = (AutoPipelineForText2Image.from_pretrained("SG161222/RealVisXL_V3.0", torch_dtype=torch.float16))
 pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
-pipeline.generator = generator
 pipeline = pipeline.to("cuda")
 
 pipeline.load_lora_weights("output", weight_name="pytorch_lora_weights.safetensors")
 image = pipeline(prompt,
                  num_inference_steps=30,
                  guidance_scale=7.5,
+                 generator=generator,
                  negative_prompt="(worst quality, low quality, illustration, 3d, 2d, painting, cartoons, sketch), open mouth"
                  ).images[0]
 
