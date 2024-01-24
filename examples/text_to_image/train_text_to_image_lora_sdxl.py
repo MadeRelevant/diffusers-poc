@@ -51,6 +51,7 @@ from diffusers import (
     DDPMScheduler,
     StableDiffusionXLPipeline,
     UNet2DConditionModel,
+    DPMSolverMultistepScheduler
 )
 from diffusers.loaders import LoraLoaderMixin
 from diffusers.optimization import get_scheduler
@@ -59,7 +60,6 @@ from diffusers.utils import check_min_version, convert_state_dict_to_diffusers, 
 from diffusers.utils.import_utils import is_xformers_available
 from diffusers.utils.torch_utils import is_compiled_module
 
-
 # Will error if the minimal version of diffusers is not installed. Remove at your own risks.
 check_min_version("0.26.0.dev0")
 
@@ -67,13 +67,13 @@ logger = get_logger(__name__)
 
 
 def save_model_card(
-    repo_id: str,
-    images=None,
-    base_model=str,
-    dataset_name=str,
-    train_text_encoder=False,
-    repo_folder=None,
-    vae_path=None,
+        repo_id: str,
+        images=None,
+        base_model=str,
+        dataset_name=str,
+        train_text_encoder=False,
+        repo_folder=None,
+        vae_path=None,
 ):
     img_str = ""
     for i, image in enumerate(images):
@@ -109,7 +109,7 @@ Special VAE used for training: {vae_path}.
 
 
 def import_model_class_from_model_name_or_path(
-    pretrained_model_name_or_path: str, revision: str, subfolder: str = "text_encoder"
+        pretrained_model_name_or_path: str, revision: str, subfolder: str = "text_encoder"
 ):
     text_encoder_config = PretrainedConfig.from_pretrained(
         pretrained_model_name_or_path, subfolder=subfolder, revision=revision
@@ -331,7 +331,7 @@ def parse_args(input_args=None):
         type=float,
         default=None,
         help="SNR weighting gamma to be used if rebalancing the loss. Recommended value is 5.0. "
-        "More details here: https://arxiv.org/abs/2303.09556.",
+             "More details here: https://arxiv.org/abs/2303.09556.",
     )
     parser.add_argument(
         "--allow_tf32",
@@ -717,7 +717,7 @@ def main(args):
 
     if args.scale_lr:
         args.learning_rate = (
-            args.learning_rate * args.gradient_accumulation_steps * args.train_batch_size * accelerator.num_processes
+                args.learning_rate * args.gradient_accumulation_steps * args.train_batch_size * accelerator.num_processes
         )
 
     # Use 8-bit Adam for lower memory usage or to fine-tune the model in 16GB GPUs
@@ -737,9 +737,9 @@ def main(args):
     params_to_optimize = list(filter(lambda p: p.requires_grad, unet.parameters()))
     if args.train_text_encoder:
         params_to_optimize = (
-            params_to_optimize
-            + list(filter(lambda p: p.requires_grad, text_encoder_one.parameters()))
-            + list(filter(lambda p: p.requires_grad, text_encoder_two.parameters()))
+                params_to_optimize
+                + list(filter(lambda p: p.requires_grad, text_encoder_one.parameters()))
+                + list(filter(lambda p: p.requires_grad, text_encoder_two.parameters()))
         )
     optimizer = optimizer_class(
         params_to_optimize,
@@ -751,8 +751,8 @@ def main(args):
 
     dataset = load_dataset_from_directory(args.train_data_dir)
 
-        # See more about loading custom images at
-        # https://huggingface.co/docs/datasets/v2.4.0/en/image_load#imagefolder
+    # See more about loading custom images at
+    # https://huggingface.co/docs/datasets/v2.4.0/en/image_load#imagefolder
 
     # Preprocessing the datasets.
     # We need to tokenize inputs and targets.
@@ -760,6 +760,7 @@ def main(args):
 
     # 6. Get the column names for input/target.
     image_column = column_names[0]
+
     # Preprocessing the datasets.
     # We need to tokenize input captions and transform the images.
     def tokenize_captions(examples, is_train=True):
@@ -1018,7 +1019,7 @@ def main(args):
                         # Velocity objective requires that we add one to SNR values before we divide by them.
                         snr = snr + 1
                     mse_loss_weights = (
-                        torch.stack([snr, args.snr_gamma * torch.ones_like(timesteps)], dim=1).min(dim=1)[0] / snr
+                            torch.stack([snr, args.snr_gamma * torch.ones_like(timesteps)], dim=1).min(dim=1)[0] / snr
                     )
 
                     loss = F.mse_loss(model_pred.float(), target.float(), reduction="none")
@@ -1094,12 +1095,17 @@ def main(args):
                     torch_dtype=weight_dtype,
                 )
 
+                pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
                 pipeline = pipeline.to(accelerator.device)
                 pipeline.set_progress_bar_config(disable=True)
 
                 # run inference
                 generator = torch.Generator(device=accelerator.device).manual_seed(args.seed) if args.seed else None
-                pipeline_args = {"prompt": args.validation_prompt}
+                pipeline_args = {"prompt": args.validation_prompt,
+                                 "negative_prompt": "(worst quality, low quality, illustration, 3d, 2d, painting, cartoons, sketch), open mouth",
+                                 "num_inference_steps": 30,
+                                 "guidance_scale": 7.5
+                                 }
 
                 with torch.cuda.amp.autocast():
                     images = [

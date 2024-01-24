@@ -8,7 +8,7 @@ from datetime import datetime
 if len(sys.argv) > 1:
     prompt = sys.argv[1]
 else:
-    prompt = "At a cocktail bar having a drink in a beautiful dress, half bodyshot"
+    prompt = "photo-of-lies a photo realistic picture taken from front perspective walking on the beach"
 
 pipeline = (AutoPipelineForText2Image.from_pretrained("SG161222/RealVisXL_V3.0", torch_dtype=torch.float16))
 pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
