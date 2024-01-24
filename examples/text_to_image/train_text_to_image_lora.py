@@ -540,6 +540,7 @@ def main():
             "imagefolder",
             data_files=data_files,
             cache_dir=args.cache_dir,
+            drop_labels=False
         )
         # See more about loading custom images at
         # https://huggingface.co/docs/datasets/v2.4.0/en/image_load#imagefolder
