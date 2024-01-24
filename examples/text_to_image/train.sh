@@ -15,7 +15,7 @@ accelerate launch train_text_to_image_lora_sdxl.py \
   --lr_scheduler="constant" \
   --lr_warmup_steps=0 \
   --output_dir=output/ \
-  --validation_prompt="photo-of-lies a photo realistic picture taken from front perspective walking on the beach" \
+  --validation_prompt="photo-of-lies neutral face" \
   --train_text_encoder\
   --checkpointing_steps=50 \
   --seed=1337

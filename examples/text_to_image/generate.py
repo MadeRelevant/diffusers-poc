@@ -8,7 +8,7 @@ from datetime import datetime
 if len(sys.argv) > 1:
     prompt = sys.argv[1]
 else:
-    prompt = "photo-of-lies a photo realistic picture taken from front perspective walking on the beach"
+    prompt = "photo-of-lies neutral face"
 
 generator = torch.Generator(device="cuda").manual_seed(1337)
 
