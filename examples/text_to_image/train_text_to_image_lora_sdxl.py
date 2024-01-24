@@ -23,6 +23,9 @@ import random
 import shutil
 from pathlib import Path
 
+from datasets import Dataset
+from datasets.features import Image
+
 import datasets
 import numpy as np
 import torch
@@ -181,12 +184,6 @@ def parse_args(input_args=None):
     )
     parser.add_argument(
         "--image_column", type=str, default="image", help="The column of the dataset containing an image."
-    )
-    parser.add_argument(
-        "--caption_column",
-        type=str,
-        default="text",
-        help="The column of the dataset containing a caption or a list of captions.",
     )
     parser.add_argument(
         "--validation_prompt",
@@ -431,11 +428,6 @@ def parse_args(input_args=None):
     return args
 
 
-DATASET_NAME_MAPPING = {
-    "lambdalabs/pokemon-blip-captions": ("image", "text"),
-}
-
-
 def tokenize_prompt(tokenizer, prompt):
     text_inputs = tokenizer(
         prompt,
@@ -676,6 +668,9 @@ def main(args):
                 text_encoder_2_lora_layers=text_encoder_two_lora_layers_to_save,
             )
 
+    def load_dataset_from_directory(directory):
+        return load_dataset("imagefolder", data_dir=directory, drop_labels=False)
+
     def load_model_hook(models, input_dir):
         unet_ = None
         text_encoder_one_ = None
@@ -754,25 +749,8 @@ def main(args):
         eps=args.adam_epsilon,
     )
 
-    # Get the datasets: you can either provide your own training and evaluation files (see below)
-    # or specify a Dataset from the hub (the dataset will be downloaded automatically from the datasets Hub).
+    dataset = load_dataset_from_directory(args.train_data_dir)
 
-    # In distributed training, the load_dataset function guarantees that only one local process can concurrently
-    # download the dataset.
-    if args.dataset_name is not None:
-        # Downloading and loading a dataset from the hub.
-        dataset = load_dataset(
-            args.dataset_name, args.dataset_config_name, cache_dir=args.cache_dir, data_dir=args.train_data_dir
-        )
-    else:
-        data_files = {}
-        if args.train_data_dir is not None:
-            data_files["train"] = os.path.join(args.train_data_dir, "**")
-        dataset = load_dataset(
-            "imagefolder",
-            data_files=data_files,
-            cache_dir=args.cache_dir,
-        )
         # See more about loading custom images at
         # https://huggingface.co/docs/datasets/v2.4.0/en/image_load#imagefolder
 
@@ -781,38 +759,12 @@ def main(args):
     column_names = dataset["train"].column_names
 
     # 6. Get the column names for input/target.
-    dataset_columns = DATASET_NAME_MAPPING.get(args.dataset_name, None)
-    if args.image_column is None:
-        image_column = dataset_columns[0] if dataset_columns is not None else column_names[0]
-    else:
-        image_column = args.image_column
-        if image_column not in column_names:
-            raise ValueError(
-                f"--image_column' value '{args.image_column}' needs to be one of: {', '.join(column_names)}"
-            )
-    if args.caption_column is None:
-        caption_column = dataset_columns[1] if dataset_columns is not None else column_names[1]
-    else:
-        caption_column = args.caption_column
-        if caption_column not in column_names:
-            raise ValueError(
-                f"--caption_column' value '{args.caption_column}' needs to be one of: {', '.join(column_names)}"
-            )
-
+    image_column = column_names[0]
     # Preprocessing the datasets.
     # We need to tokenize input captions and transform the images.
     def tokenize_captions(examples, is_train=True):
-        captions = []
-        for caption in examples[caption_column]:
-            if isinstance(caption, str):
-                captions.append(caption)
-            elif isinstance(caption, (list, np.ndarray)):
-                # take a random caption if there are multiple
-                captions.append(random.choice(caption) if is_train else caption[0])
-            else:
-                raise ValueError(
-                    f"Caption column `{caption_column}` should contain either strings or lists of strings."
-                )
+        fixed_caption = "A selfie of a person"
+        captions = [fixed_caption] * len(examples[image_column])
         tokens_one = tokenize_prompt(tokenizer_one, captions)
         tokens_two = tokenize_prompt(tokenizer_two, captions)
         return tokens_one, tokens_two
