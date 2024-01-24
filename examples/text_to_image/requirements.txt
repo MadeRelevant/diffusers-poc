@@ -6,3 +6,7 @@ ftfy
 tensorboard
 Jinja2
 peft==0.7.0
+blip
+git+https://github.com/huggingface/transformers
+timm==0.4.12
+fairscale==0.4.4
