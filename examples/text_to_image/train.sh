@@ -9,14 +9,14 @@ accelerate launch train_text_to_image_lora_sdxl.py \
   --random_flip \
   --train_batch_size=1 \
   --train_data_dir=./data \
-  --max_train_steps=100 \
+  --max_train_steps=250 \
   --learning_rate=1e-04 \
   --max_grad_norm=1 \
   --lr_scheduler="cosine" \
   --lr_warmup_steps=0 \
   --output_dir=output/ \
   --validation_epochs=20 \
-  --validation_prompt="photo-of-lies neutral face" \
+  --validation_prompt="aifluencer playing guitar on the porch, almost sunset, vibrant lighting" \
   --train_text_encoder\
   --checkpointing_steps=50 \
   --seed=1337

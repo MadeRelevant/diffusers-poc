@@ -764,11 +764,21 @@ def main(args):
     # Preprocessing the datasets.
     # We need to tokenize input captions and transform the images.
     def tokenize_captions(examples, is_train=True):
-        fixed_caption = "A selfie of a person"
-        captions = [fixed_caption] * len(examples[image_column])
-        tokens_one = tokenize_prompt(tokenizer_one, captions)
-        tokens_two = tokenize_prompt(tokenizer_two, captions)
-        return tokens_one, tokens_two
+        captions = []
+        for caption in examples[caption_column]:
+            if isinstance(caption, str):
+                captions.append(caption)
+            elif isinstance(caption, (list, np.ndarray)):
+                # take a random caption if there are multiple
+                captions.append(random.choice(caption) if is_train else caption[0])
+            else:
+                raise ValueError(
+                    f"Caption column `{caption_column}` should contain either strings or lists of strings."
+                )
+        inputs = tokenizer(
+            captions, max_length=tokenizer.model_max_length, padding="max_length", truncation=True, return_tensors="pt"
+        )
+        return inputs.input_ids
 
     # Preprocessing the datasets.
     train_resize = transforms.Resize(args.resolution, interpolation=transforms.InterpolationMode.BILINEAR)

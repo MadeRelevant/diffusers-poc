@@ -8,7 +8,7 @@ from datetime import datetime
 if len(sys.argv) > 1:
     prompt = sys.argv[1]
 else:
-    prompt = "photo-of-lies neutral face"
+    prompt = "aifluencer playing guitar on the porch, almost sunset, vibrant lighting"
 
 generator = torch.Generator(device="cuda").manual_seed(1337)
 
@@ -16,8 +16,8 @@ pipeline = (AutoPipelineForText2Image.from_pretrained("SG161222/RealVisXL_V3.0",
 pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
 pipeline = pipeline.to("cuda")
 
-pipeline.load_lora_weights("output", weight_name="pytorch_lora_weights.safetensors")
-pipeline.fuse_lora()
+pipeline.load_lora_weights("output", weight_name="pytorch_lora_weights.safetensors", adapter_name="aifluencer")
+pipeline.fuse_lora(lora_scale=0.8)
 
 image = pipeline(prompt,
                  num_inference_steps=30,
