@@ -7,6 +7,7 @@ accelerate launch train_text_to_image_lora_sdxl.py \
   --resolution=1024 \
   --center_crop \
   --random_flip \
+  --gradient_accumulation_steps=4 \
   --train_batch_size=1 \
   --train_data_dir=./data \
   --max_train_steps=250 \
