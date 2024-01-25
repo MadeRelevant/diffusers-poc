@@ -15,6 +15,7 @@ generator = torch.Generator(device="cuda").manual_seed(1337)
 pipeline = (AutoPipelineForText2Image.from_pretrained("SG161222/RealVisXL_V3.0", torch_dtype=torch.float16))
 pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
 pipeline = pipeline.to("cuda")
+pipeline.fuse_lora()
 
 pipeline.load_lora_weights("output", weight_name="pytorch_lora_weights.safetensors")
 image = pipeline(prompt,
