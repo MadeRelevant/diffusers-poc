@@ -12,7 +12,7 @@ model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-capt
 image_directory = "data"  # Update this to your directory path
 
 # List all image files in the directory
-image_filenames = [f for f in os.listdir(image_directory) if f.endswith(('.jpg', '.jpeg', '.JPG', '.JPEG'))]
+image_filenames = [f for f in os.listdir(image_directory) if f.endswith(('.jpg', '.jpeg', '.JPG', '.JPEG', '.png', '.PNG'))]
 
 # Create metadata entries
 metadata_entries = []
