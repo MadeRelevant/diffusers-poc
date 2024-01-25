@@ -23,9 +23,6 @@ import random
 import shutil
 from pathlib import Path
 
-from datasets import Dataset
-from datasets.features import Image
-
 import datasets
 import numpy as np
 import torch
@@ -51,7 +48,6 @@ from diffusers import (
     DDPMScheduler,
     StableDiffusionXLPipeline,
     UNet2DConditionModel,
-    DPMSolverMultistepScheduler
 )
 from diffusers.loaders import LoraLoaderMixin
 from diffusers.optimization import get_scheduler
@@ -60,6 +56,7 @@ from diffusers.utils import check_min_version, convert_state_dict_to_diffusers, 
 from diffusers.utils.import_utils import is_xformers_available
 from diffusers.utils.torch_utils import is_compiled_module
 
+
 # Will error if the minimal version of diffusers is not installed. Remove at your own risks.
 check_min_version("0.26.0.dev0")
 
@@ -67,13 +64,13 @@ logger = get_logger(__name__)
 
 
 def save_model_card(
-        repo_id: str,
-        images=None,
-        base_model=str,
-        dataset_name=str,
-        train_text_encoder=False,
-        repo_folder=None,
-        vae_path=None,
+    repo_id: str,
+    images=None,
+    base_model=str,
+    dataset_name=str,
+    train_text_encoder=False,
+    repo_folder=None,
+    vae_path=None,
 ):
     img_str = ""
     for i, image in enumerate(images):
@@ -109,7 +106,7 @@ Special VAE used for training: {vae_path}.
 
 
 def import_model_class_from_model_name_or_path(
-        pretrained_model_name_or_path: str, revision: str, subfolder: str = "text_encoder"
+    pretrained_model_name_or_path: str, revision: str, subfolder: str = "text_encoder"
 ):
     text_encoder_config = PretrainedConfig.from_pretrained(
         pretrained_model_name_or_path, subfolder=subfolder, revision=revision
@@ -184,6 +181,12 @@ def parse_args(input_args=None):
     )
     parser.add_argument(
         "--image_column", type=str, default="image", help="The column of the dataset containing an image."
+    )
+    parser.add_argument(
+        "--caption_column",
+        type=str,
+        default="text",
+        help="The column of the dataset containing a caption or a list of captions.",
     )
     parser.add_argument(
         "--validation_prompt",
@@ -331,7 +334,7 @@ def parse_args(input_args=None):
         type=float,
         default=None,
         help="SNR weighting gamma to be used if rebalancing the loss. Recommended value is 5.0. "
-             "More details here: https://arxiv.org/abs/2303.09556.",
+        "More details here: https://arxiv.org/abs/2303.09556.",
     )
     parser.add_argument(
         "--allow_tf32",
@@ -426,6 +429,11 @@ def parse_args(input_args=None):
         raise ValueError("Need either a dataset name or a training folder.")
 
     return args
+
+
+DATASET_NAME_MAPPING = {
+    "lambdalabs/pokemon-blip-captions": ("image", "text"),
+}
 
 
 def tokenize_prompt(tokenizer, prompt):
@@ -668,9 +676,6 @@ def main(args):
                 text_encoder_2_lora_layers=text_encoder_two_lora_layers_to_save,
             )
 
-    def load_dataset_from_directory(directory):
-        return load_dataset("imagefolder", data_dir=directory, drop_labels=False)
-
     def load_model_hook(models, input_dir):
         unet_ = None
         text_encoder_one_ = None
@@ -717,7 +722,7 @@ def main(args):
 
     if args.scale_lr:
         args.learning_rate = (
-                args.learning_rate * args.gradient_accumulation_steps * args.train_batch_size * accelerator.num_processes
+            args.learning_rate * args.gradient_accumulation_steps * args.train_batch_size * accelerator.num_processes
         )
 
     # Use 8-bit Adam for lower memory usage or to fine-tune the model in 16GB GPUs
@@ -737,9 +742,9 @@ def main(args):
     params_to_optimize = list(filter(lambda p: p.requires_grad, unet.parameters()))
     if args.train_text_encoder:
         params_to_optimize = (
-                params_to_optimize
-                + list(filter(lambda p: p.requires_grad, text_encoder_one.parameters()))
-                + list(filter(lambda p: p.requires_grad, text_encoder_two.parameters()))
+            params_to_optimize
+            + list(filter(lambda p: p.requires_grad, text_encoder_one.parameters()))
+            + list(filter(lambda p: p.requires_grad, text_encoder_two.parameters()))
         )
     optimizer = optimizer_class(
         params_to_optimize,
@@ -749,17 +754,50 @@ def main(args):
         eps=args.adam_epsilon,
     )
 
-    dataset = load_dataset_from_directory(args.train_data_dir)
+    # Get the datasets: you can either provide your own training and evaluation files (see below)
+    # or specify a Dataset from the hub (the dataset will be downloaded automatically from the datasets Hub).
 
-    # See more about loading custom images at
-    # https://huggingface.co/docs/datasets/v2.4.0/en/image_load#imagefolder
+    # In distributed training, the load_dataset function guarantees that only one local process can concurrently
+    # download the dataset.
+    if args.dataset_name is not None:
+        # Downloading and loading a dataset from the hub.
+        dataset = load_dataset(
+            args.dataset_name, args.dataset_config_name, cache_dir=args.cache_dir, data_dir=args.train_data_dir
+        )
+    else:
+        data_files = {}
+        if args.train_data_dir is not None:
+            data_files["train"] = os.path.join(args.train_data_dir, "**")
+        dataset = load_dataset(
+            "imagefolder",
+            data_files=data_files,
+            cache_dir=args.cache_dir,
+        )
+        # See more about loading custom images at
+        # https://huggingface.co/docs/datasets/v2.4.0/en/image_load#imagefolder
 
     # Preprocessing the datasets.
     # We need to tokenize inputs and targets.
     column_names = dataset["train"].column_names
 
     # 6. Get the column names for input/target.
-    image_column = column_names[0]
+    dataset_columns = DATASET_NAME_MAPPING.get(args.dataset_name, None)
+    if args.image_column is None:
+        image_column = dataset_columns[0] if dataset_columns is not None else column_names[0]
+    else:
+        image_column = args.image_column
+        if image_column not in column_names:
+            raise ValueError(
+                f"--image_column' value '{args.image_column}' needs to be one of: {', '.join(column_names)}"
+            )
+    if args.caption_column is None:
+        caption_column = dataset_columns[1] if dataset_columns is not None else column_names[1]
+    else:
+        caption_column = args.caption_column
+        if caption_column not in column_names:
+            raise ValueError(
+                f"--caption_column' value '{args.caption_column}' needs to be one of: {', '.join(column_names)}"
+            )
 
     # Preprocessing the datasets.
     # We need to tokenize input captions and transform the images.
@@ -775,10 +813,9 @@ def main(args):
                 raise ValueError(
                     f"Caption column `{caption_column}` should contain either strings or lists of strings."
                 )
-        inputs = tokenizer(
-            captions, max_length=tokenizer.model_max_length, padding="max_length", truncation=True, return_tensors="pt"
-        )
-        return inputs.input_ids
+        tokens_one = tokenize_prompt(tokenizer_one, captions)
+        tokens_two = tokenize_prompt(tokenizer_two, captions)
+        return tokens_one, tokens_two
 
     # Preprocessing the datasets.
     train_resize = transforms.Resize(args.resolution, interpolation=transforms.InterpolationMode.BILINEAR)
@@ -1029,7 +1066,7 @@ def main(args):
                         # Velocity objective requires that we add one to SNR values before we divide by them.
                         snr = snr + 1
                     mse_loss_weights = (
-                            torch.stack([snr, args.snr_gamma * torch.ones_like(timesteps)], dim=1).min(dim=1)[0] / snr
+                        torch.stack([snr, args.snr_gamma * torch.ones_like(timesteps)], dim=1).min(dim=1)[0] / snr
                     )
 
                     loss = F.mse_loss(model_pred.float(), target.float(), reduction="none")
@@ -1105,17 +1142,12 @@ def main(args):
                     torch_dtype=weight_dtype,
                 )
 
-                pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
                 pipeline = pipeline.to(accelerator.device)
                 pipeline.set_progress_bar_config(disable=True)
 
                 # run inference
                 generator = torch.Generator(device=accelerator.device).manual_seed(args.seed) if args.seed else None
-                pipeline_args = {"prompt": args.validation_prompt,
-                                 "negative_prompt": "(worst quality, low quality, illustration, 3d, 2d, painting, cartoons, sketch), open mouth",
-                                 "num_inference_steps": 30,
-                                 "guidance_scale": 7.5
-                                 }
+                pipeline_args = {"prompt": args.validation_prompt}
 
                 with torch.cuda.amp.autocast():
                     images = [
@@ -1182,7 +1214,6 @@ def main(args):
             variant=args.variant,
             torch_dtype=weight_dtype,
         )
-        pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
         pipeline = pipeline.to(accelerator.device)
 
         # load attention processors
@@ -1193,11 +1224,7 @@ def main(args):
         if args.validation_prompt and args.num_validation_images > 0:
             generator = torch.Generator(device=accelerator.device).manual_seed(args.seed) if args.seed else None
             images = [
-                pipeline(args.validation_prompt,
-                         num_inference_steps=30,
-                         guidance_scale=7.5,
-                         negative_prompt="(worst quality, low quality, illustration, 3d, 2d, painting, cartoons, sketch), open mouth",
-                         generator=generator).images[0]
+                pipeline(args.validation_prompt, num_inference_steps=25, generator=generator).images[0]
                 for _ in range(args.num_validation_images)
             ]
 
