@@ -8,7 +8,7 @@ from datetime import datetime
 if len(sys.argv) > 1:
     prompt = sys.argv[1]
 else:
-    prompt = "aifluencer playing guitar on the porch, almost sunset, vibrant lighting"
+    prompt = "RAW photo, aifluencer, (high detailed skin:1.2), 8k uhd, dslr, soft lighting, high quality, film grain, Fujifilm XT3"
 
 generator = torch.Generator(device="cuda").manual_seed(1337)
 
@@ -23,7 +23,7 @@ image = pipeline(prompt,
                  num_inference_steps=30,
                  guidance_scale=7.5,
                  generator=generator,
-                 negative_prompt="(worst quality, low quality, illustration, 3d, 2d, painting, cartoons, sketch), open mouth",
+                 negative_prompt="(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime:1.4), text, close up, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck",
                  # Weight for lora
                  cross_attention_kwargs={"scale": 0.5}
                  ).images[0]
